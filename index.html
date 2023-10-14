@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GeoShare</title>
+  </head>
+  <body>
+    <h1>GeoShare</h1>
+    <div class="closest-place-container">
+      <form id="llForm">
+        <p>
+          <label>
+            Latitude:
+            <input
+              name="lat"
+              type="number"
+              min="-90"
+              max="90"
+              placeholder="[-89.999999 : 89.999999]"
+              id="latInput"
+              class="coords"
+              step=".000001"
+              value="41.8781"
+              required
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Longtitude:
+            <input
+              name="long"
+              type="number"
+              min="-180"
+              max="180"
+              placeholder="[-179.999999 : 179.999999]"
+              id="longInput"
+              class="coords"
+              step=".000001"
+              value="-87.6298"
+              required
+            />
+          </label>
+        </p>
+        <button type="submit" id="lookupButton">Lookup!</button>
+      </form>
+      <div id="closestPlace"></div>
+    </div>
+    <section class="places-container" id="placesSection"></section>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

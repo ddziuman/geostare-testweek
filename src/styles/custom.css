@@ -1,0 +1,76 @@
+*,
+*::after,
+*::before {
+  box-sizing: border-box;
+}
+
+input,
+button {
+  font: inherit;
+  text-align: inherit;
+}
+
+h1 {
+  margin: 25px auto;
+  text-align: center;
+}
+
+.closest-place-container {
+  margin: 0 auto;
+  width: 50%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+}
+
+.closest-place-container > * {
+  width: 40%;
+}
+
+form {
+  text-align: center;
+}
+
+input {
+  padding: 1rem;
+  font-size: 2rem;
+  width: 100%;
+}
+
+p {
+  text-align: center;
+}
+
+label,
+.welcome {
+  font-size: 1.5rem;
+}
+
+button {
+  font-size: 2rem;
+}
+
+.places-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+}
+
+ul {
+  list-style-type: none;
+}
+
+.category-item {
+  --category-background: url("/icon-no-image-32.png");
+}
+
+.category-item::before {
+  content: var(--category-background);
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+/* label::after {
+  content: "°";
+  width: min-content;
+} */

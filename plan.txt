@@ -1,0 +1,6 @@
+TODO LIST:
+1. String union types ---> rewrite ---> Enums
+Description:
+String pipes (FSSearchRecord sorting keys, etc.) on ENUMS (because it is more convenient)
+
+2. 
