@@ -1,3 +1,3 @@
-export function ensureNonEmptyString(value: string | undefined): boolean {
+export function ensureNonEmptyString(value: unknown): boolean {
   return typeof value === 'string' && value.length > 0;
 }

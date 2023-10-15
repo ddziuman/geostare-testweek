@@ -4,6 +4,8 @@ import { SearchPlacementRecord } from "./SearchPlacementRecord.ts";
 import { FSSearchAPI } from "../apis/foursquare/FSSearchAPI.ts";
 import { AuthType, PayloadFormat } from "../apis/ISearchAPI.ts";
 import { precompleteConfig } from "../view/precompleteConfig.ts";
+import { Injectable } from "../abstract/Injectable.ts";
+import { InjectionTarget } from "../abstract/InjectionTarget.ts";
 
 const APIs = {  // TODO: вынести отдельно ближе к 3 слою, + upgrade to Singleton with 'getAPI' entity
   [FSSearchAPI.name]: new FSSearchAPI(
@@ -16,11 +18,12 @@ const APIs = {  // TODO: вынести отдельно ближе к 3 сло�
 
 // TODO: Implement caching responses from APIs (from certain coordinates) => (from single place)
 
-export class PlacesService {
+export class PlacesService extends Injectable<{ radius: number }>, InjectionTarget {
   // business logic layer
-  constructor(apiName: string) {
-    this.searchAPI = APIs[apiName];
-    this.radius = this.botRadiusLimit; // always in meters!
+  constructor() {
+    super({ radius: precompleteConfig.botRadiusLimit });
+    // this.searchAPI = APIs[apiName];
+    // this.radius = this.botRadiusLimit; // always in meters!
   }
 
   public async updatePlacesContext(userRecord: UserPlacementRecord): Promise<PlacesContext> {
@@ -55,8 +58,7 @@ export class PlacesService {
     return ctx;
   }
 
-  private searchAPI;
-  private radius: number;
+  private searchAPI = this.;
   public get botRadiusLimit(): number {
     return precompleteConfig.botRadiusLimit;
   }

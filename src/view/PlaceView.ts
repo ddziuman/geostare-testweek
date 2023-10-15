@@ -1,15 +1,16 @@
 import { UserPlacementRecord } from "./UserPlacementRecord.ts";
-import { IView, ViewComponent } from "./IView.ts";
-import { PlacesService } from "../logic/PlacesService.ts";
 import { Place, PlaceErrorMessage, PlacesContext } from "../logic/PlacesContext.ts";
 import { precompleteConfig } from "./precompleteConfig.ts";
+import { View } from "../abstract/View.ts";
+import { PlacesService } from "../logic/PlacesService.ts";
 
-export class PlacesView implements IView {
+
+export class PlacesView extends View {
   constructor(
     closestPlaceParent: HTMLElement,
-    nearbyPlacesParent: HTMLElement
+    nearbyPlacesParent: HTMLElement,
   ) {
-    this.components = [
+    super([
       {
         parent: closestPlaceParent,
         fragment: new DocumentFragment(),
@@ -18,23 +19,10 @@ export class PlacesView implements IView {
         parent: nearbyPlacesParent,
         fragment: new DocumentFragment(),
       },
-    ];
-
-    this.service = new PlacesService('Foursquare'); // TODO: upgrade to Singleton!!!
+    ]);
   }
 
-  public components: ViewComponent[];
-  private service: PlacesService;
-
-  render(renderee: ViewComponent): void {
-    const { parent, fragment } = renderee;
-    parent.innerHTML = "";
-    parent.appendChild(fragment);
-  }
-
-  getComponent(i: number): ViewComponent {
-    return this.components[i];
-  }
+  private placesService = this.getDependency<PlacesService>(PlacesService);
 
   async updatePlaces(viewParams: UserPlacementRecord) {
     const closestComponent = this.closestPlace;
