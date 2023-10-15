@@ -1,9 +1,10 @@
 import { IView, ViewComponent } from "../view/IView.ts";
-import { InjectionTarget, InjectionTargetType } from "./InjectionTarget.ts";
+import { DependencySingleton } from "./DependencySingleton.ts";
+import { InjectionTargetType } from "./InjectionTarget.ts";
 
-export abstract class View extends InjectionTarget implements IView {
+export abstract class View extends DependencySingleton implements IView {
   constructor(components: ViewComponent[]) {
-    super(InjectionTargetType.View);
+    super(InjectionTargetType.View, {});
     this.components = components;
   }
 

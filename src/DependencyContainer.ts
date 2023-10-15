@@ -1,7 +1,7 @@
-import { Injectable } from "./abstract/Injectable";
-import { InjectionTarget, InjectionTargetType } from "./abstract/InjectionTarget";
+import { InjectionTargetType } from "./abstract/InjectionTarget";
 import { PlacesService } from "./logic/PlacesService";
 import { FSSearchAPI } from "./apis/foursquare/FSSearchAPI";
+import { DependencySingleton } from "./abstract/DependencySingleton";
 
 export const DependencyContainer: DependencyMap = {
   instancesCache: {},
@@ -17,7 +17,7 @@ export const DependencyContainer: DependencyMap = {
     FSSearchAPI: {},
   },
 
-  getDependenciesFor(target: InjectionTarget): Record<string, Injectable<object>> {
+  getDependenciesFor(target: DependencySingleton<object>): Record<string, DependencySingleton<object>> {
     const depsType = target.targetType === InjectionTargetType.View ? 'views': 'services';
     const depsListOfType = this[depsType];
     const targetName = target.constructor.name;
@@ -36,11 +36,11 @@ export const DependencyContainer: DependencyMap = {
 
 };
 
-type DependencyList = { [target: string]: { [dependency: string]: typeof Injectable<object> }};
+type DependencyList = { [target: string]: { [dependency: string]: typeof DependencySingleton<object> }};
 
 type DependencyMap = {
-  instancesCache: Record<string, Injectable<object>>,
+  instancesCache: Record<string, DependencySingleton<object>>,
   views: DependencyList,
   services: DependencyList,
-  getDependenciesFor: (target: InjectionTarget) => Record<string, Injectable<object>>;
+  getDependenciesFor: (target: DependencySingleton<object>) => Record<string, DependencySingleton<object>>;
 };
