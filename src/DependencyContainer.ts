@@ -3,7 +3,6 @@ import { InjectionTargetType } from "./abstract/InjectionTargetType";
 import { PlacesService } from "./logic/PlacesService";
 import { FSSearchAPI } from "./apis/foursquare/FSSearchAPI";
 import { PlacesView } from "./view/PlaceView";
-import { precompleteConfig } from "./view/precompleteConfig";
 import { AuthType, HTTPMethod, PayloadContentType } from "./apis/API";
 import { DependencyScheme } from "./DependencyScheme";
 import { PlacesCacheService } from "./logic/PlacesCacheService";
@@ -84,9 +83,7 @@ const DependencyConfig: DependencyConfigType = { // dependency map and schemes p
       uri: "https://api.foursquare.com/v3/places/search",
       method: HTTPMethod.GET,
     }]),
-    PlacesService: new DependencyScheme<typeof PlacesService>(PlacesService, [{
-      radius: precompleteConfig.botRadiusLimit,
-    }]),
+    PlacesService: new DependencyScheme<typeof PlacesService>(PlacesService, []),
     PlacesView: new DependencyScheme<typeof PlacesView>(PlacesView, [
       document.querySelector("#closestPlace")!,
       document.getElementById("placesSection")!

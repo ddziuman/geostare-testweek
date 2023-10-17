@@ -10,6 +10,11 @@ type PlacesCacheRecord = {
   placesInRadius: Place[],
 }
 
+type SortedCacheRecord = {
+  userInCacheRadius: number, 
+  cachedRecord: PlacesCacheRecord
+}
+
 type CacheServiceProps = {
   cacheMaxSize: number,
   currentSize: number,
@@ -47,55 +52,85 @@ export class PlacesCacheService extends Service<CacheServiceProps> {
   }
 
   // 'exact-coordinates-prelookup', (NOT SMART yet)
-  // Smart level: 1. ( level 2 is what we were speaking about ) ( level 3 is 'dynamic' removals )
+  // Smart level: ( level 3 is overlapping circles + removing ), but not yet implemented
   prelookupCache(searchRecord: SearchPlacementRecord): Place[] {
     const cache = this.cache;
-    const { latitude, longtitude, radius, limit, cacheKey } = this.prepareCacheRecordParams(searchRecord);
+    const limit = searchRecord.lookupLimit;
+    const { latitude, longtitude, cacheKey } = this.prepareCacheRecordParams(searchRecord);
     // the exact coordinates 'simple' case (100% guarantee):
     console.dir(cache);
     const placesFromCache = cache[cacheKey];
     if (placesFromCache) return placesFromCache.placesInRadius;
-    // OK, let's try to pass the whole cache:
-    const cachedRecords = Object.values(cache); // think about this 'whole cache' passing!
-    let guaranteedPlaces: Place[] = [];
+    // OK, let's smart-pass the whole cache
+    const cachedRecords = Object.values(cache);
+    let guaranteedPlaces: Place[] = []; // final result
+    let maxInnerCacheRadiusChecked = 0;
+    // 1. For every cached record, compute radius(k2)
+    // 2. Quick-filter-out non-relevant cached records (negative radius(k2)=maxInnerRadius):
+    // 3. Sort caches in ascending order based on innerCacheRadiuses (for avoiding duplicates!!!)
+    const cachedRecordsSortedByUser: SortedCacheRecord[] = [];
     for (const cachedRecord of cachedRecords) {
-      // What are the constraints of a 'relevant, 100% guarantee' for a cached record?
-      // The first in the list inside a 'cachedRecord' IS NOT 100% the relevant record
-  
-      // Should I 'filter' by PlacesCacheRecords first, and then the actual Places here?
-      // Maybe I should do '.reduce' or 'for of'?
-  
-      // Maybe I can first 'filter' the relevant PlacesCacheRecords?
-      
-      // len(k1,k2') + radius(k2') <= radius(k1) --> 100% guarantee that there are no other places, 
-      // then those which ARE in this 'big' radius of k1.
-      // so let's actually test this first 100% case: (are there even any other?)
       const { 
-        latitude: cachedLatitude, 
+        latitude: cachedLatitude,
         longtitude: cachedLongtitude, 
         foundRadiusMeters } = cachedRecord;
       const userToRecordDistance = 
         this.placesMath.applyHaversineFormula(cachedLatitude, cachedLongtitude, latitude, longtitude);
-      if (userToRecordDistance + radius > foundRadiusMeters) continue; // else, extend logic somehow? (level 3)
-      // let's take up to first NEEDED COUNT of places from cache: [from 1 to 6]
-      // step 1: sort (with multiple keys)
-      // step 2: take up to 6 first elements
-      guaranteedPlaces = cachedRecord.placesInRadius
-        .slice()
-        .sort(this.placesMath.multiKeyPlaceSort(latitude, longtitude)) // re-sorting for K2'
-        .slice(0, limit);
-      break;
+      const userInCacheRadius = cachedRecord.foundRadiusMeters - userToRecordDistance; // step 1
+      if (userInCacheRadius < 0) continue; // step 2
+      cachedRecordsSortedByUser.push({ userInCacheRadius, cachedRecord });
     }
+    cachedRecordsSortedByUser.sort((a, b) => a.userInCacheRadius - b.userInCacheRadius); // step 3
+
+    // 4.Iterate, skip non-relevant when no places within radius(k2) / when places
+    // have already been processed by previous 'maxInnerCacheRadiusChecked' cache
+    // [ only those places which in the 'ring', for NO DUPLICATES in result ]
+    // 5. Update 'maxInnerCacheRadiusChecked', if needed
+    // 6. Re-calculate the places' ACTUAL distance to the user (by creating copies)
+    // 7. Push found relevant places to the final result
+    // 8. multi-key sort the final result and slice the fisrt <needed>[6]
+    // 9. Update 'radius' for seach record, anyways (based on 'maxInnerCacheRadiusCehcked')
+
+    for (const sortedCachedRecord of cachedRecordsSortedByUser) {
+      const userInCacheRadius = sortedCachedRecord.userInCacheRadius;
+      
+      if (maxInnerCacheRadiusChecked <= userInCacheRadius)
+        maxInnerCacheRadiusChecked = userInCacheRadius; // step 5
+      
+      const relevantCachedPlaces: Place[] = // step 4 (start)
+        sortedCachedRecord.cachedRecord.placesInRadius.reduce<Place[]>((places: Place[], place: Place) => {
+          if (!(place.latitude && place.longtitude)) return places;
+          const userToCachedPlaceDistance = 
+            this.placesMath.applyHaversineFormula(latitude, longtitude, +place.latitude, +place.longtitude);
+          if (userToCachedPlaceDistance > userInCacheRadius || // step 4 ('ring' checking)
+              userToCachedPlaceDistance <= maxInnerCacheRadiusChecked) 
+            return places; // this place is either too far, or a 'duplicate' from lesser cache
+          
+          const updatedDistanceCopy = Object.assign({}, place);
+          updatedDistanceCopy.distanceMeters = userToCachedPlaceDistance; // step 6
+          places.push(updatedDistanceCopy);
+          return places;
+        }, []);
+      if (relevantCachedPlaces.length === 0) continue;
+      guaranteedPlaces.push(...relevantCachedPlaces); // step 7
+    }
+
+    guaranteedPlaces = guaranteedPlaces // step 8
+      .sort(this.placesMath.multiKeyPlaceSort(latitude, longtitude)) // re-sorting for K2'
+      .slice(0, limit);
+    
+    if (maxInnerCacheRadiusChecked <= 0) // step 9
+      maxInnerCacheRadiusChecked = 30;
+    searchRecord.radius = maxInnerCacheRadiusChecked
+    
     return guaranteedPlaces; // 100% something good in there!
   }
 
   private prepareCacheRecordParams(searchRecord: SearchPlacementRecord) {
     const latitude = +searchRecord.latitude;
     const longtitude = +searchRecord.longtitude;
-    const radius = +searchRecord.radius;
-    const limit = +searchRecord.lookupLimit;
     const cacheKey = this.cacheKey(latitude, longtitude);
-    return { latitude, longtitude, radius, limit, cacheKey };
+    return { latitude, longtitude, cacheKey };
   }
 
   private cacheKey(latitude: number, longtitude: number) {

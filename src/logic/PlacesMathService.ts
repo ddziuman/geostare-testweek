@@ -11,6 +11,7 @@ export class PlacesMathService extends Service {
     return 6371e3;
   }
 
+  // ‘as-the-crow-flies’ distance between the points, in meters
   public applyHaversineFormula(lat1: number, long1: number, lat2: number, long2: number) {
     const radianFactor = Math.PI / 180;
     const latitudePhi1 = lat1 * radianFactor;

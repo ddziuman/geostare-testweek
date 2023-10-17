@@ -17,8 +17,8 @@ export class FSSearchAPI extends API<FSSearchRecord, FSSearchResult, SearchPlace
   adaptFrom(adaptee: SearchPlacementRecord): FSSearchRecord { // logic --> api
     return {
       ll: `${adaptee.latitude},${adaptee.longtitude}`,
-      radius: adaptee.radius,
-      limit: adaptee.lookupLimit,
+      radius: String(adaptee.radius),
+      limit: String(adaptee.lookupLimit),
       sort: FSSearchSortingKey.distance,
       fields: FSSearchKeys,
     };
