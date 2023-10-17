@@ -28,7 +28,7 @@ export class PlacesView extends View {
     const closestComponent = this.closestPlace;
     const nearbyComponent = this.nearbyPlaces;
 
-    const ctx = await this.service.updatePlacesContext(viewParams);
+    const ctx = await this.placesService.updatePlacesContext(viewParams);
     this.applyPlacesContext(ctx);
 
     this.render(closestComponent);

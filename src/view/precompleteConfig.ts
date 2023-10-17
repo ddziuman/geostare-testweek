@@ -3,4 +3,5 @@ export const precompleteConfig = {
   topRadiusLimit: 2000,
   maxRatingOfTen: '10,0',
   areaScaleFactor: 3,
+  placesDisplayLimit: "6",
 };

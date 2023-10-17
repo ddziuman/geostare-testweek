@@ -2,42 +2,45 @@ import { Place, PlaceErrorMessage, PlacesContext } from "./PlacesContext.ts";
 import { UserPlacementRecord } from "../view/UserPlacementRecord.ts";
 import { SearchPlacementRecord } from "./SearchPlacementRecord.ts";
 import { FSSearchAPI } from "../apis/foursquare/FSSearchAPI.ts";
-import { AuthType, PayloadFormat } from "../apis/ISearchAPI.ts";
 import { precompleteConfig } from "../view/precompleteConfig.ts";
 import { Service } from "../abstract/Service.ts";
+import { PlacesCacheService } from "./PlacesCacheService.ts";
 
-const APIs = {  // TODO: вынести отдельно ближе к 3 слою, + upgrade to Singleton with 'getAPI' entity
-  [FSSearchAPI.name]: new FSSearchAPI(
-    AuthType.key, 
-    "fsq3h4BEyJeFMtuQn+DbFHiC+ZlKwH9RdhEh22ONKWNsgcI=",
-    PayloadFormat.query,
-    "https://api.foursquare.com/v3/places/search",
-  ),
-};
+type PlacesServiceProps = { radius: number };
 
 // TODO: Implement caching responses from APIs (from certain coordinates) => (from single place)
 
-export class PlacesService extends Service<{ radius: number }> {
+export class PlacesService extends Service<PlacesServiceProps> {
   // business logic layer
-  constructor() {
-    super({ radius: precompleteConfig.botRadiusLimit });
+  constructor(searchProps: PlacesServiceProps) {
+    super(searchProps);
   }
 
   public async updatePlacesContext(userRecord: UserPlacementRecord): Promise<PlacesContext> {
-    /** Business logic tasks: 
-     * 1) Radius increment (DONE, not tested)
-     * 2) Priority sorting (DONE, not tested)
-     * 3) Error handling (server down, out of radius limit bounds) (DONE, not tested)
-     * 4) Related places showing up in result??? (not done, not tested)
-    */
-    if (this.radius >= this.topRadiusLimit) {
+    // TODO:
+    // simplify recursion logic, remove strong cohesion on ErrorMessage, replace sort to FSSearchAPI
+    if (this.props.radius >= this.topRadiusLimit) {
       // end recursion
       return {
         places: [],
         searchMessage: PlaceErrorMessage.tooLateTooFar,
       };
     }
-    let searchRecord: SearchPlacementRecord = Object.assign({ radius: String(this.radius) }, userRecord);
+    let searchRecord: SearchPlacementRecord = 
+      Object.assign({ radius: String(this.props.radius), lookupLimit: precompleteConfig.placesDisplayLimit }, userRecord);
+    // HERE, before each following recursive search call, first LOOKUP THE CACHE?
+    // debugger;
+    const placesFromCache = this.caching.prelookupCache(searchRecord);
+      /* But there's no guarantee that placesFromCache will be 100% THE NEAREST, until extra req
+      Is there actually a GUARANTEE in any cases? 
+      Should 'prelookup' return only 100% places (if exist), to not make extra requests right away?
+
+      YES, IT HAS TO! Because otherwise it doesn't provide any useful information for this service
+      So now we can prevent the following 'searchPlaces' in 'searchAPI' FSSearch instance: */
+    if (placesFromCache.length > 0) return {
+      places: placesFromCache,
+      searchMessage: PlaceErrorMessage.ok,
+    }
     const ctx = await this.searchAPI.searchPlaces(searchRecord);
     // TODO: rewrite 'PlaceErrorMessage' on error objects passing, simplify!
     if (ctx.searchMessage === PlaceErrorMessage.serverDown) {
@@ -47,15 +50,17 @@ export class PlacesService extends Service<{ radius: number }> {
       };
     }
     if (ctx.searchMessage === PlaceErrorMessage.tooLateTooFar) {
-      this.radius = this.computeNextRadius();
+      // could have changed 'this.radius' right away, but used 'universal' way of 'this.updateProps'
+      this.updateProps({ radius: this.computeNextRadius() });
       return await this.updatePlacesContext(userRecord);
     }
 
-    ctx.places.sort(this.multiKeyPlaceSort(+userRecord.latitude, +userRecord.longtitude));
+    this.caching.pushToCache(searchRecord, ctx.places);
     return ctx;
   }
 
-  // private searchAPI = this.getDependency;
+  private searchAPI = this.getDependency<FSSearchAPI>(FSSearchAPI);
+  private caching = this.getDependency<PlacesCacheService>(PlacesCacheService);
   public get botRadiusLimit(): number {
     return precompleteConfig.botRadiusLimit;
   }
@@ -63,61 +68,15 @@ export class PlacesService extends Service<{ radius: number }> {
     return precompleteConfig.topRadiusLimit;
   }
   public get areaFromRadius(): number {
-    return Math.round(Math.PI * Math.pow(this.radius, 2));
-  }
-  public get earthRadius(): number {
-    return 6371e3;
+    return Math.round(Math.PI * Math.pow(this.props.radius, 2));
   }
   private computeNextRadius(): number {
     const nextArea = this.areaFromRadius * precompleteConfig.areaScaleFactor;
     return Math.round(Math.sqrt(nextArea / Math.PI));
   }
-  private multiKeyPlaceSort(userLat: number, userLong: number) {
-    return (a: Place, b: Place): number => {
-      if (a.distanceMeters && b.distanceMeters) {
-        const diff = a.distanceMeters - b.distanceMeters;
-        if (diff) return diff;
-      }
-      if (a.latitude && a.longtitude && b.latitude && b.longtitude) { // TODO: replace to the lowest API level
-        let userADistance = a.distanceMeters;
-        if (!userADistance) {
-          userADistance = this.applyHaversineFormula(userLat, userLong, a.latitude, a.longtitude);
-          a.distanceMeters = userADistance;
-        }
-        let userBDistance = b.distanceMeters;
-        if (!userBDistance) {
-          userBDistance = this.applyHaversineFormula(userLat, userLong, b.latitude, b.longtitude);
-          b.distanceMeters = userBDistance;
-        }
-
-        const diff = userADistance - userBDistance;
-        if (diff) return diff;
-      }
-      if (a.ratingOutOfTen && b.ratingOutOfTen) {
-        const diff = b.ratingOutOfTen - a.ratingOutOfTen;
-        if (diff) return diff;
-      }
-      return 0;
-    }
-  }
 
   // ‘as-the-crow-flies’ distance between the points, in kilometers
-  // TODO: replace to external class, working with places 'mathematically'
-  private applyHaversineFormula(lat1: number, long1: number, lat2: number, long2: number) {
-    const radianFactor = Math.PI / 180;
-    const latitudePhi1 = lat1 * radianFactor;
-    const latitudePhi2 = lat2 * radianFactor;
-
-    const deltaLatitudesPhi = (lat2 - lat1) * radianFactor;
-    const deltaLongtitudesLambda = (long2 - long1) * radianFactor;
-
-    const aTriangleSide = 
-      Math.pow(Math.sin(deltaLatitudesPhi / 2), 2) +
-      Math.cos(latitudePhi1) * Math.cos(latitudePhi2) *
-      Math.pow(Math.sin(deltaLongtitudesLambda / 2), 2);
-    
-    const cTriangleSide = 2 * Math.atan2(Math.sqrt(aTriangleSide), Math.sqrt(1 - aTriangleSide));
-
-    return this.earthRadius * cTriangleSide; // in meters
-  }
+  // TODO: replace to external class, working with places 'mathematically'.
+  // It will be as dependency for FSSearchAPI (for pre-sorting, after taking out the sorting part from here)
+  // And it will be as dependency for PlacesCacheService (for verifying the 100% relevant cached cases)
 }

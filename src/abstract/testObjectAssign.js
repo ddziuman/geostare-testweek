@@ -14,3 +14,12 @@ class InheritingClass extends SomeClass {
 }
 
 const instance = new InheritingClass();
+
+
+
+const a = {
+  func() {
+    a = 5;
+  }
+}
+

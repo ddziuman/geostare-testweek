@@ -1,5 +1,5 @@
 import { DependencySingleton } from "./DependencySingleton";
-import { InjectionTargetType } from "./InjectionTarget";
+import { InjectionTargetType } from "./InjectionTargetType";
 
 export abstract class Service<Props extends {} = {}> extends DependencySingleton<Props> {
   constructor(initProps: Props) {

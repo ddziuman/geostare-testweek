@@ -1,37 +1,40 @@
-import { PlacesContext, PlaceErrorMessage, Place, PlaceCategory, RelatedPlaces } from "../../logic/PlacesContext.ts";
-import { SearchPlacementRecord } from "../../logic/SearchPlacementRecord.ts";
-import { ISearchAPI, AuthType, PayloadFormat } from "../ISearchAPI.ts";
-import { FSSearchRecord } from "./FSSearchRecord.ts";
-import { FSPlace, FSPlaceCategory, FSPlaceLocation, FSSearchResult } from "./FSSearchResult.ts";
-import { RequsetInitFactory } from "../RequestInitFactory.ts";
-import { FSSearchKeys } from "./FSSearchResult.ts";
-import { ensureNonEmptyString } from "../../validators/ensureNonEmptyString.ts";
+import { PlacesContext, PlaceErrorMessage, Place, PlaceCategory, RelatedPlaces } from "../../logic/PlacesContext";
+import { SearchPlacementRecord } from "../../logic/SearchPlacementRecord";
+import { API, APIProps } from "../API";
+import { FSSearchRecord, FSSearchSortingKey } from "./FSSearchRecord";
+import { FSPlace, FSPlaceCategory, FSPlaceLocation, FSSearchResult } from "./FSSearchResult";
+import { FSSearchKeys } from "./FSSearchResult";
+import { ensureNonEmptyString } from "../../validators/ensureNonEmptyString";
+import { PlacesMathService } from "../../logic/PlacesMathService";
 
-export class FSSearchAPI implements ISearchAPI<FSSearchRecord, FSSearchResult> {
-  constructor(auth: AuthType, key: string, format: PayloadFormat, uri: RequestInfo | URL) {
-    this.auth = auth;
-    this.key = key;
-    this.format = format;
-    this.uri = uri;
-    this.prepareRequest = RequsetInitFactory(this);
+export class FSSearchAPI extends API<FSSearchRecord, FSSearchResult, SearchPlacementRecord, PlacesContext> {
+  constructor(apiProps: APIProps) {
+    super(apiProps);
   }
+
+  private placesMath = this.getDependency<PlacesMathService>(PlacesMathService);
 
   adaptFrom(adaptee: SearchPlacementRecord): FSSearchRecord { // logic --> api
     return {
       ll: `${adaptee.latitude},${adaptee.longtitude}`,
       radius: adaptee.radius,
-      limit: "6",
-      sort: "distance",
+      limit: adaptee.lookupLimit,
+      sort: FSSearchSortingKey.distance,
       fields: FSSearchKeys,
     };
   }
 
   adaptFor(adaptee: FSSearchResult): PlacesContext { // api --> logic
+    const { latitude, longtitude } = adaptee.context.geo_bounds.circle.center;
     const fsPlaces = adaptee.results;
     const searchMessage = fsPlaces.length > 0 ? 
       PlaceErrorMessage.ok : PlaceErrorMessage.tooLateTooFar;
-    const places: Place[] = this.adaptFSPlacesToPlaces(fsPlaces);
-
+    let places: Place[] = [];
+    if (fsPlaces.length > 0) {
+      places.push(
+        ...this.adaptFSPlacesToPlaces(fsPlaces)
+        .sort(this.placesMath.multiKeyPlaceSort(latitude, longtitude)));
+    }
     return { searchMessage, places };
   }
 
@@ -152,14 +155,4 @@ export class FSSearchAPI implements ISearchAPI<FSSearchRecord, FSSearchResult> {
   get categoryIconSize() {
     return 32;
   }
-
-  static get name(): string {
-    return 'Foursquare';
-  }
-
-  public auth: AuthType;
-  public key: string;
-  public format: PayloadFormat;
-  public uri: RequestInfo | URL;
-  public prepareRequest: (record: FSSearchRecord) => { resource: RequestInfo | URL; init: RequestInit };
 }

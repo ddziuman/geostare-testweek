@@ -1,7 +1,6 @@
 
 // type GConstructor<T = {}> = new (...args: any[]) => T; // constraint to constructors returning T!
 
-// type InjectableInjectionTarget = GConstructor
 
 // type Positionable = GConstructor<{ setPos: (x: number, y: number) => void }>;
 
